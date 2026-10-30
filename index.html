@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Ambrosius">
+  <meta name="theme-color" content="#ffffff">
+  <title>Ambrosius’ 健身日誌</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Chart.js for smooth trend curve -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root {
+      --bg: #F8F9FA;
+      --card-bg: #FFFFFF;
+      --text-main: #1C1C1E;
+      --text-sub: #8E8E93;
+      --accent: #2563EB;
+      --accent-light: #EFF6FF;
+      --accent-hover: #1D4ED8;
+      --danger: #EF4444;
+      --danger-light: #FEE2E2;
+      --border: #E5E7EB;
+      --safe-top: env(safe-area-inset-top, 20px);
+      --safe-bottom: env(safe-area-inset-bottom, 20px);
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      padding-top: calc(var(--safe-top) + 16px);
+      padding-bottom: calc(var(--safe-bottom) + 76px);
+      min-height: 100vh;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* Header */
+    .app-header {
+      padding: 0 20px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+    .app-header h1 {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: var(--text-main);
+    }
+    .app-header span {
+      font-size: 13px;
+      color: var(--text-sub);
+      font-weight: 500;
+    }
+
+    /* Container */
+    .container {
+      padding: 0 16px;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+
+    /* Card Component */
+    .card {
+      background: var(--card-bg);
+      border-radius: 16px;
+      padding: 18px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03), 0 4px 12px rgba(0,0,0,0.02);
+      border: 1px solid var(--border);
+    }
+
+    .card-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-main);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Forms */
+    .form-group {
+      margin-bottom: 12px;
+    }
+    .form-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-sub);
+      margin-bottom: 6px;
+      display: block;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .form-control {
+      width: 100%;
+      height: 44px;
+      border: 1px solid var(--border);
+      background: #FAFAFA;
+      border-radius: 10px;
+      padding: 0 12px;
+      font-size: 15px;
+      color: var(--text-main);
+      outline: none;
+      transition: all 0.2s;
+    }
+    .form-control:focus {
+      border-color: var(--accent);
+      background: #FFF;
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr 1fr;
+      gap: 8px;
+    }
+
+    /* Buttons */
+    .btn {
+      height: 44px;
+      border-radius: 10px;
+      border: none;
+      font-size: 15px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+      width: 100%;
+      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+    }
+    .btn-primary:active {
+      background: var(--accent-hover);
+      transform: scale(0.98);
+    }
+    .btn-secondary {
+      background: var(--accent-light);
+      color: var(--accent);
+      padding: 0 14px;
+      font-size: 13px;
+      height: 36px;
+    }
+    .btn-danger {
+      background: var(--danger-light);
+      color: var(--danger);
+    }
+    .btn-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #F3F4F6;
+      border: none;
+      cursor: pointer;
+      color: var(--text-sub);
+    }
+
+    /* Summary Bar */
+    .summary-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      background: #FAFAFA;
+      padding: 12px;
+      border-radius: 12px;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+    .metric-value {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+    .metric-label {
+      font-size: 11px;
+      color: var(--text-sub);
+      margin-top: 2px;
+    }
+
+    /* Record Items */
+    .record-item {
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .record-item:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+    .record-main {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .badge {
+      font-size: 11px;
+      padding: 2px 7px;
+      background: #F3F4F6;
+      color: var(--text-sub);
+      border-radius: 6px;
+      font-weight: 500;
+    }
+    .record-sub {
+      font-size: 13px;
+      color: var(--text-sub);
+      margin-top: 4px;
+    }
+    .record-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    /* PR List */
+    .pr-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .pr-card:last-child {
+      border-bottom: none;
+    }
+    .pr-weight {
+      font-size: 17px;
+      font-weight: 700;
+      color: #059669;
+    }
+
+    /* Management List */
+    .mgmt-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .mgmt-row:last-child {
+      border-bottom: none;
+    }
+
+    /* Bottom Tab Bar (iOS Style) */
+    .tab-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-top: 1px solid var(--border);
+      padding-bottom: var(--safe-bottom);
+      height: calc(58px + var(--safe-bottom));
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      z-index: 100;
+    }
+    .tab-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-sub);
+      text-decoration: none;
+      font-size: 10px;
+      font-weight: 500;
+      gap: 3px;
+      cursor: pointer;
+      padding: 6px 0;
+    }
+    .tab-item.active {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* Page View switcher */
+    .view-page {
+      display: none;
+    }
+    .view-page.active {
+      display: block;
+      animation: fadeIn 0.2s ease-in-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      display: none;
+      justify-content: center;
+      align-items: flex-end;
+      z-index: 200;
+    }
+    .modal-overlay.active {
+      display: flex;
+    }
+    .modal-card {
+      background: white;
+      width: 100%;
+      max-width: 500px;
+      border-radius: 20px 20px 0 0;
+      padding: 20px 20px calc(20px + var(--safe-bottom));
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+      animation: slideUp 0.25s ease-out;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .modal-header h3 {
+      font-size: 17px;
+      font-weight: 600;
+    }
+    .empty-tip {
+      text-align: center;
+      padding: 30px 10px;
+      color: var(--text-sub);
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- App Header -->
+  <header class="app-header">
+    <div>
+      <h1>Ambrosius’</h1>
+      <span id="headerSub">今日訓練日誌</span>
+    </div>
+    <div id="todayDateBadge" style="font-size: 13px; font-weight: 600; color: var(--accent);"></div>
+  </header>
+
+  <main class="container">
+
+    <!-- PAGE A: 首頁 / 今日速記 -->
+    <section id="pageA" class="view-page active">
+      <!-- 快速輸入卡片 -->
+      <div class="card">
+        <div class="card-title">
+          <i data-lucide="plus-circle" style="width: 18px; color: var(--accent);"></i>
+          <span>今日速記</span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">訓練日期</label>
+          <input type="date" id="inputDate" class="form-control">
+        </div>
+
+        <div class="grid-2 form-group">
+          <div>
+            <label class="form-label">部位主分類</label>
+            <select id="selectCategory" class="form-control" onchange="onCategoryChange()">
+              <!-- Generated via JS -->
+            </select>
+          </div>
+          <div>
+            <label class="form-label">器材 / 動作次類</label>
+            <select id="selectExercise" class="form-control" onchange="onExerciseChange()">
+              <!-- Generated via JS -->
+            </select>
+          </div>
+        </div>
+
+        <div class="grid-3 form-group">
+          <div>
+            <label class="form-label">磅數 (lbs)</label>
+            <input type="number" id="inputWeight" class="form-control" placeholder="0" step="0.5" inputmode="decimal">
+          </div>
+          <div>
+            <label class="form-label">次數</label>
+            <input type="number" id="inputReps" class="form-control" placeholder="10" inputmode="numeric">
+          </div>
+          <div>
+            <label class="form-label">組數</label>
+            <input type="number" id="inputSets" class="form-control" placeholder="3" inputmode="numeric">
+          </div>
+        </div>
+
+        <button class="btn btn-primary" onclick="handleAddRecord()">
+          <i data-lucide="check" style="width: 18px;"></i>
+          加入今日紀錄
+        </button>
+      </div>
+
+      <!-- 今日訓練成果與列表 -->
+      <div class="card">
+        <div class="card-title" style="justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <i data-lucide="activity" style="width: 18px; color: var(--accent);"></i>
+            <span>今日訓練成果</span>
+          </div>
+          <span id="todayCount" class="badge">0 項動作</span>
+        </div>
+
+        <div class="summary-metrics">
+          <div>
+            <div class="metric-value" id="todayTotalVolume">0</div>
+            <div class="metric-label">總容量 (lbs)</div>
+          </div>
+          <div>
+            <div class="metric-value" id="todayTotalSets">0</div>
+            <div class="metric-label">總組數 (Sets)</div>
+          </div>
+          <div>
+            <div class="metric-value" id="todayMaxWeight">0</div>
+            <div class="metric-label">最高負重 (lbs)</div>
+          </div>
+        </div>
+
+        <div id="todayRecordList">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+    </section>
+
+    <!-- PAGE B: 統計分析 -->
+    <section id="pageB" class="view-page">
+      <!-- 走勢圖 -->
+      <div class="card">
+        <div class="card-title">
+          <i data-lucide="trending-up" style="width: 18px; color: var(--accent);"></i>
+          <span>近 90 天訓練走勢 (磅數)</span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">選擇器材動作</label>
+          <select id="trendExerciseSelect" class="form-control" onchange="renderTrendChart()">
+            <!-- Dynamic -->
+          </select>
+        </div>
+
+        <div style="position: relative; height: 230px; width: 100%; margin-top: 10px;">
+          <canvas id="trendChart"></canvas>
+        </div>
+      </div>
+
+      <!-- PR 查詢 -->
+      <div class="card">
+        <div class="card-title">
+          <i data-lucide="award" style="width: 18px; color: #EAB308;"></i>
+          <span>PR 個人最高紀錄榜</span>
+        </div>
+        <div id="prListContainer">
+          <!-- Dynamic -->
+        </div>
+      </div>
+    </section>
+
+    <!-- PAGE C: 項目編輯 -->
+    <section id="pageC" class="view-page">
+      <!-- 主分類管理 -->
+      <div class="card">
+        <div class="card-title" style="justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <i data-lucide="layers" style="width: 18px; color: var(--accent);"></i>
+            <span>部位主分類管理</span>
+          </div>
+          <button class="btn btn-secondary" onclick="openAddCategoryModal()">+ 新增部位</button>
+        </div>
+        <div id="categoryMgmtList">
+          <!-- Dynamic -->
+        </div>
+      </div>
+
+      <!-- 次分類動作管理 -->
+      <div class="card">
+        <div class="card-title" style="justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <i data-lucide="dumbbell" style="width: 18px; color: var(--accent);"></i>
+            <span>器材動作次分類管理</span>
+          </div>
+          <button class="btn btn-secondary" onclick="openAddExerciseModal()">+ 新增動作</button>
+        </div>
+        <div class="form-group" style="margin-top: 8px;">
+          <select id="mgmtCategoryFilter" class="form-control" onchange="renderExerciseMgmtList()">
+            <!-- Dynamic -->
+          </select>
+        </div>
+        <div id="exerciseMgmtList">
+          <!-- Dynamic -->
+        </div>
+      </div>
+
+      <!-- 資料備份管理 -->
+      <div class="card">
+        <div class="card-title">
+          <i data-lucide="shield-check" style="width: 18px; color: #10B981;"></i>
+          <span>本地資料備份</span>
+        </div>
+        <p style="font-size: 13px; color: var(--text-sub); margin-bottom: 12px;">資料皆安全儲存在此手機本地。你可隨時匯出備份 JSON 檔案或自備份復原。</p>
+        <div class="grid-2">
+          <button class="btn btn-secondary" onclick="exportData()">匯出備份 (JSON)</button>
+          <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">匯入還原</button>
+          <input type="file" id="importFile" style="display: none;" accept=".json" onchange="importData(event)">
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- iOS Bottom Tab Bar -->
+  <nav class="tab-bar">
+    <div class="tab-item active" onclick="switchTab('pageA', this)">
+      <i data-lucide="edit-3" style="width: 22px;"></i>
+      <span>今日速記</span>
+    </div>
+    <div class="tab-item" onclick="switchTab('pageB', this)">
+      <i data-lucide="bar-chart-2" style="width: 22px;"></i>
+      <span>統計趨勢</span>
+    </div>
+    <div class="tab-item" onclick="switchTab('pageC', this)">
+      <i data-lucide="settings" style="width: 22px;"></i>
+      <span>動作管理</span>
+    </div>
+  </nav>
+
+  <!-- Edit Record Modal -->
+  <div id="editRecordModal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>修改訓練紀錄</h3>
+        <button class="btn-icon" onclick="closeModal('editRecordModal')">✕</button>
+      </div>
+      <input type="hidden" id="editRecordId">
+      <div class="form-group">
+        <label class="form-label">器材 / 動作</label>
+        <input type="text" id="editRecordName" class="form-control" disabled style="background:#eee;">
+      </div>
+      <div class="grid-3 form-group">
+        <div>
+          <label class="form-label">磅數 (lbs)</label>
+          <input type="number" id="editRecordWeight" class="form-control" step="0.5" inputmode="decimal">
+        </div>
+        <div>
+          <label class="form-label">次數</label>
+          <input type="number" id="editRecordReps" class="form-control" inputmode="numeric">
+        </div>
+        <div>
+          <label class="form-label">組數</label>
+          <input type="number" id="editRecordSets" class="form-control" inputmode="numeric">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="handleSaveEditRecord()">儲存更新</button>
+    </div>
+  </div>
+
+  <script>
+    // 預設資料結構 (依據使用者規格清單)
+    const DEFAULT_DATA = {
+      categories: ["胸", "背", "腿", "手臂", "肩"],
+      exercises: [
+        { id: "e1", category: "胸", name: "平握推" },
+        { id: "e2", category: "胸", name: "上胸握推" },
+        { id: "e3", category: "胸", name: "下胸握推" },
+        { id: "e4", category: "背", name: "滑輪下拉" },
+        { id: "e5", category: "背", name: "坐姿高拉背" },
+        { id: "e6", category: "背", name: "坐姿平拉背" },
+        { id: "e7", category: "背", name: "後飛鳥" },
+        { id: "e8", category: "腿", name: "槓鈴深蹲" },
+        { id: "e9", category: "腿", name: "硬舉" },
+        { id: "e10", category: "腿", name: "肱二頭坐姿" },
+        { id: "e11", category: "腿", name: "後勾臀腿" },
+        { id: "e12", category: "腿", name: "弓箭分腿蹲" },
+        { id: "e13", category: "手臂", name: "啞鈴二頭彎舉" },
+        { id: "e14", category: "手臂", name: "滑輪二頭" },
+        { id: "e15", category: "手臂", name: "滑輪三頭" },
+        { id: "e16", category: "肩", name: "啞鈴肩推" },
+        { id: "e17", category: "肩", name: "坐姿肩推" }
+      ],
+      records: []
+    };
+
+    // State
+    let appData = { ...DEFAULT_DATA };
+    let chartInstance = null;
+
+    // LocalStorage Keys
+    const STORAGE_KEY = 'ambrosius_fitness_pwa_v1';
+
+    function initApp() {
+      // 載入本地儲存
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          appData = JSON.parse(saved);
+          if (!appData.categories) appData.categories = DEFAULT_DATA.categories;
+          if (!appData.exercises) appData.exercises = DEFAULT_DATA.exercises;
+          if (!appData.records) appData.records = [];
+        } catch (e) {
+          appData = { ...DEFAULT_DATA };
+        }
+      } else {
+        appData = { ...DEFAULT_DATA };
+        saveData();
+      }
+
+      // 設定今日日期
+      const today = new Date().toISOString().split('T')[0];
+      const dateInput = document.getElementById('inputDate');
+      dateInput.value = today;
+      dateInput.addEventListener('change', renderTodayRecords);
+
+      document.getElementById('todayDateBadge').innerText = today;
+
+      // 初始化下拉選項
+      populateCategoryDropdown();
+      populateExerciseDropdown();
+      populateTrendExerciseDropdown();
+      populateMgmtFilter();
+
+      // 載入上次同項目數值
+      onExerciseChange();
+
+      // 渲染畫面
+      renderTodayRecords();
+      renderPrList();
+      renderCategoryMgmtList();
+      renderExerciseMgmtList();
+
+      lucide.createIcons();
+
+      // 註冊 Service Worker
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js').catch(err => console.log('SW failed', err));
+      }
+    }
+
+    function saveData() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+    }
+
+    // Tab 切換
+    function switchTab(pageId, tabElement) {
+      document.querySelectorAll('.view-page').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+
+      document.getElementById(pageId).classList.add('active');
+      tabElement.classList.add('active');
+
+      const titles = {
+        'pageA': '今日訓練日誌',
+        'pageB': '歷史趨勢與 PR',
+        'pageC': '訓練項目設定'
+      };
+      document.getElementById('headerSub').innerText = titles[pageId] || '';
+
+      if (pageId === 'pageB') {
+        populateTrendExerciseDropdown();
+        renderTrendChart();
+        renderPrList();
+      }
+      lucide.createIcons();
+    }
+
+    // 下拉選單連動
+    function populateCategoryDropdown() {
+      const select = document.getElementById('selectCategory');
+      select.innerHTML = appData.categories.map(c => `<option value="${c}">${c}</option>`).join('');
+    }
+
+    function populateExerciseDropdown() {
+      const cat = document.getElementById('selectCategory').value;
+      const select = document.getElementById('selectExercise');
+      const filtered = appData.exercises.filter(e => e.category === cat);
+      if (filtered.length === 0) {
+        select.innerHTML = '<option value="">(尚無項目)</option>';
+      } else {
+        select.innerHTML = filtered.map(e => `<option value="${e.name}">${e.name}</option>`).join('');
+      }
+    }
+
+    function onCategoryChange() {
+      populateExerciseDropdown();
+      onExerciseChange();
+    }
+
+    // 磅數：預設載入上一次同項目的數值
+    function onExerciseChange() {
+      const exName = document.getElementById('selectExercise').value;
+      if (!exName) return;
+
+      // 找到此動作最近一次記錄
+      const history = [...appData.records]
+        .filter(r => r.exercise === exName)
+        .sort((a, b) => new Date(b.date) - new Date(a.date) || b.timestamp - a.timestamp);
+
+      if (history.length > 0) {
+        const last = history[0];
+        document.getElementById('inputWeight').value = last.weight;
+        document.getElementById('inputReps').value = last.reps;
+        document.getElementById('inputSets').value = last.sets;
+      } else {
+        document.getElementById('inputWeight').value = '';
+        document.getElementById('inputReps').value = '10';
+        document.getElementById('inputSets').value = '3';
+      }
+    }
+
+    // 新增訓練紀錄
+    function handleAddRecord() {
+      const date = document.getElementById('inputDate').value;
+      const category = document.getElementById('selectCategory').value;
+      const exercise = document.getElementById('selectExercise').value;
+      const weight = parseFloat(document.getElementById('inputWeight').value);
+      const reps = parseInt(document.getElementById('inputReps').value);
+      const sets = parseInt(document.getElementById('inputSets').value);
+
+      if (!exercise) {
+        alert('請先選擇動作器材');
+        return;
+      }
+      if (isNaN(weight) || weight < 0) {
+        alert('請輸入有效磅數');
+        return;
+      }
+      if (isNaN(reps) || reps <= 0 || isNaN(sets) || sets <= 0) {
+        alert('請輸入有效次數與組數');
+        return;
+      }
+
+      const newRecord = {
+        id: 'rec_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+        timestamp: Date.now(),
+        date,
+        category,
+        exercise,
+        weight,
+        reps,
+        sets
+      };
+
+      appData.records.unshift(newRecord);
+      saveData();
+      renderTodayRecords();
+      lucide.createIcons();
+    }
+
+    // 今日記錄清單與即時成果計算
+    function renderTodayRecords() {
+      const selectedDate = document.getElementById('inputDate').value;
+      const listContainer = document.getElementById('todayRecordList');
+      const todayList = appData.records.filter(r => r.date === selectedDate);
+
+      // 計算成果指標
+      let totalVol = 0;
+      let totalSets = 0;
+      let maxWeight = 0;
+
+      todayList.forEach(r => {
+        totalVol += (r.weight * r.reps * r.sets);
+        totalSets += r.sets;
+        if (r.weight > maxWeight) maxWeight = r.weight;
+      });
+
+      document.getElementById('todayCount').innerText = `${todayList.length} 項動作`;
+      document.getElementById('todayTotalVolume').innerText = totalVol.toLocaleString();
+      document.getElementById('todayTotalSets').innerText = totalSets;
+      document.getElementById('todayMaxWeight').innerText = maxWeight;
+
+      if (todayList.length === 0) {
+        listContainer.innerHTML = '<div class="empty-tip">今日尚無紀錄，開始記錄你的第一組訓練吧！</div>';
+        return;
+      }
+
+      listContainer.innerHTML = todayList.map(r => {
+        const vol = r.weight * r.reps * r.sets;
+        return `
+          <div class="record-item">
+            <div>
+              <div class="record-main">
+                <span>${r.exercise}</span>
+                <span class="badge">${r.category}</span>
+              </div>
+              <div class="record-sub">
+                ${r.weight} lbs × ${r.sets}組 × ${r.reps}次 
+                <span style="color:var(--accent); margin-left:6px;">(${vol.toLocaleString()} lbs)</span>
+              </div>
+            </div>
+            <div class="record-actions">
+              <button class="btn-icon" onclick="openEditRecordModal('${r.id}')" title="修改">
+                <i data-lucide="edit-2" style="width:16px;"></i>
+              </button>
+              <button class="btn-icon btn-danger" onclick="deleteRecord('${r.id}')" title="刪除">
+                <i data-lucide="trash-2" style="width:16px;"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      lucide.createIcons();
+    }
+
+    // 刪除紀錄
+    function deleteRecord(id) {
+      if (confirm('確定刪除此項訓練記錄？')) {
+        appData.records = appData.records.filter(r => r.id !== id);
+        saveData();
+        renderTodayRecords();
+      }
+    }
+
+    // 修改紀錄 Modal
+    function openEditRecordModal(id) {
+      const rec = appData.records.find(r => r.id === id);
+      if (!rec) return;
+
+      document.getElementById('editRecordId').value = rec.id;
+      document.getElementById('editRecordName').value = `${rec.category} - ${rec.exercise}`;
+      document.getElementById('editRecordWeight').value = rec.weight;
+      document.getElementById('editRecordReps').value = rec.reps;
+      document.getElementById('editRecordSets').value = rec.sets;
+
+      document.getElementById('editRecordModal').classList.add('active');
+    }
+
+    function handleSaveEditRecord() {
+      const id = document.getElementById('editRecordId').value;
+      const rec = appData.records.find(r => r.id === id);
+      if (!rec) return;
+
+      const weight = parseFloat(document.getElementById('editRecordWeight').value);
+      const reps = parseInt(document.getElementById('editRecordReps').value);
+      const sets = parseInt(document.getElementById('editRecordSets').value);
+
+      if (isNaN(weight) || weight < 0 || isNaN(reps) || isNaN(sets)) {
+        alert('請輸入有效數值');
+        return;
+      }
+
+      rec.weight = weight;
+      rec.reps = reps;
+      rec.sets = sets;
+
+      saveData();
+      closeModal('editRecordModal');
+      renderTodayRecords();
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('active');
+    }
+
+    // B. 統計分析：近 90 天走勢圖與 PR 查詢
+    function populateTrendExerciseDropdown() {
+      const select = document.getElementById('trendExerciseSelect');
+      const currentVal = select.value;
+      select.innerHTML = appData.exercises.map(e => `<option value="${e.name}">[${e.category}] ${e.name}</option>`).join('');
+      if (currentVal && appData.exercises.some(e => e.name === currentVal)) {
+        select.value = currentVal;
+      }
+    }
+
+    function renderTrendChart() {
+      const exName = document.getElementById('trendExerciseSelect').value;
+      const ctx = document.getElementById('trendChart').getContext('2d');
+
+      const ninetyDaysAgo = new Date();
+      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+      const filtered = appData.records
+        .filter(r => r.exercise === exName && new Date(r.date) >= ninetyDaysAgo)
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      const labels = filtered.map(r => r.date.substring(5)); // MM-DD
+      const dataWeights = filtered.map(r => r.weight);
+
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+
+      chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels.length ? labels : ['無數據'],
+          datasets: [{
+            label: `${exName} 磅數 (lbs)`,
+            data: dataWeights.length ? dataWeights : [0],
+            borderColor: '#2563EB',
+            backgroundColor: 'rgba(37, 99, 235, 0.08)',
+            fill: true,
+            tension: 0.35,
+            pointRadius: 4,
+            pointBackgroundColor: '#2563EB',
+            borderWidth: 2.5
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#1C1C1E',
+              titleFont: { size: 12 },
+              bodyFont: { size: 13, weight: 'bold' },
+              padding: 10,
+              displayColors: false
+            }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { font: { size: 11 }, color: '#8E8E93' }
+            },
+            y: {
+              beginAtZero: false,
+              grid: { color: '#F1F5F9' },
+              ticks: { font: { size: 11 }, color: '#8E8E93' }
+            }
+          }
+        }
+      });
+    }
+
+    function renderPrList() {
+      const container = document.getElementById('prListContainer');
+      const prMap = {};
+
+      appData.records.forEach(r => {
+        if (!prMap[r.exercise] || r.weight > prMap[r.exercise].weight) {
+          prMap[r.exercise] = {
+            weight: r.weight,
+            date: r.date,
+            category: r.category,
+            reps: r.reps
+          };
+        }
+      });
+
+      const keys = Object.keys(prMap);
+      if (keys.length === 0) {
+        container.innerHTML = '<div class="empty-tip">完成訓練後，將在此自動更新各動作 PR 榜！</div>';
+        return;
+      }
+
+      container.innerHTML = keys.map(ex => {
+        const item = prMap[ex];
+        return `
+          <div class="pr-card">
+            <div>
+              <div style="font-weight:600; font-size:15px; color:var(--text-main);">
+                ${ex} <span class="badge">${item.category}</span>
+              </div>
+              <div style="font-size:12px; color:var(--text-sub); margin-top:2px;">
+                達成日期：${item.date} (${item.reps} 次)
+              </div>
+            </div>
+            <div class="pr-weight">${item.weight} <span style="font-size:12px; font-weight:normal;">lbs</span></div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // C. 訓練項目編輯功能
+    function renderCategoryMgmtList() {
+      const container = document.getElementById('categoryMgmtList');
+      container.innerHTML = appData.categories.map(cat => `
+        <div class="mgmt-row">
+          <span style="font-weight:600; font-size:15px;">${cat}</span>
+          <div style="display:flex; gap:6px;">
+            <button class="btn-icon" onclick="editCategory('${cat}')" title="修改"><i data-lucide="edit-2" style="width:15px;"></i></button>
+            <button class="btn-icon btn-danger" onclick="deleteCategory('${cat}')" title="刪除"><i data-lucide="trash-2" style="width:15px;"></i></button>
+          </div>
+        </div>
+      `).join('');
+      lucide.createIcons();
+    }
+
+    function populateMgmtFilter() {
+      const select = document.getElementById('mgmtCategoryFilter');
+      select.innerHTML = appData.categories.map(c => `<option value="${c}">篩選：${c}</option>`).join('');
+    }
+
+    function renderExerciseMgmtList() {
+      const filterCat = document.getElementById('mgmtCategoryFilter').value;
+      const container = document.getElementById('exerciseMgmtList');
+      const list = appData.exercises.filter(e => e.category === filterCat);
+
+      if (list.length === 0) {
+        container.innerHTML = '<div class="empty-tip">此分類下尚無器材動作</div>';
+        return;
+      }
+
+      container.innerHTML = list.map(e => `
+        <div class="mgmt-row">
+          <span style="font-size:14px; font-weight:500;">${e.name}</span>
+          <div style="display:flex; gap:6px;">
+            <button class="btn-icon" onclick="editExercise('${e.id}')" title="修改"><i data-lucide="edit-2" style="width:15px;"></i></button>
+            <button class="btn-icon btn-danger" onclick="deleteExercise('${e.id}')" title="刪除"><i data-lucide="trash-2" style="width:15px;"></i></button>
+          </div>
+        </div>
+      `).join('');
+      lucide.createIcons();
+    }
+
+    function openAddCategoryModal() {
+      const name = prompt('請輸入新增的部位主分類名稱 (例如: 核心)：');
+      if (name && name.trim()) {
+        const clean = name.trim();
+        if (appData.categories.includes(clean)) return alert('此分類已存在');
+        appData.categories.push(clean);
+        saveData();
+        refreshAllDropdowns();
+      }
+    }
+
+    function editCategory(oldName) {
+      const newName = prompt('修改主分類名稱：', oldName);
+      if (newName && newName.trim() && newName.trim() !== oldName) {
+        const clean = newName.trim();
+        const idx = appData.categories.indexOf(oldName);
+        if (idx !== -1) appData.categories[idx] = clean;
+        appData.exercises.forEach(e => {
+          if (e.category === oldName) e.category = clean;
+        });
+        saveData();
+        refreshAllDropdowns();
+      }
+    }
+
+    function deleteCategory(cat) {
+      if (confirm(`刪除「${cat}」分類將會同步刪除該分類下所有器材動作，確定刪除？`)) {
+        appData.categories = appData.categories.filter(c => c !== cat);
+        appData.exercises = appData.exercises.filter(e => e.category !== cat);
+        saveData();
+        refreshAllDropdowns();
+      }
+    }
+
+    function openAddExerciseModal() {
+      const currentCat = document.getElementById('mgmtCategoryFilter').value;
+      const name = prompt(`在「${currentCat}」下新增器材動作名稱：`);
+      if (name && name.trim()) {
+        const clean = name.trim();
+        if (appData.exercises.some(e => e.category === currentCat && e.name === clean)) {
+          return alert('此動作已存在於該分類中');
+        }
+        appData.exercises.push({
+          id: 'ex_' + Date.now(),
+          category: currentCat,
+          name: clean
+        });
+        saveData();
+        refreshAllDropdowns();
+      }
+    }
+
+    function editExercise(id) {
+      const ex = appData.exercises.find(e => e.id === id);
+      if (!ex) return;
+      const newName = prompt('修改動作器材名稱：', ex.name);
+      if (newName && newName.trim() && newName.trim() !== ex.name) {
+        ex.name = newName.trim();
+        saveData();
+        refreshAllDropdowns();
+      }
+    }
+
+    function deleteExercise(id) {
+      const ex = appData.exercises.find(e => e.id === id);
+      if (!ex) return;
+      if (confirm(`確定刪除動作器材「${ex.name}」？`)) {
+        appData.exercises = appData.exercises.filter(e => e.id !== id);
+        saveData();
+        refreshAllDropdowns();
+      }
+    }
+
+    function refreshAllDropdowns() {
+      populateCategoryDropdown();
+      populateExerciseDropdown();
+      populateMgmtFilter();
+      renderCategoryMgmtList();
+      renderExerciseMgmtList();
+    }
+
+    // 匯出 / 匯入資料庫
+    function exportData() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appData, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `Ambrosius_Workout_Backup_${new Date().toISOString().split('T')[0]}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    }
+
+    function importData(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const imported = JSON.parse(e.target.result);
+          if (imported.categories && imported.exercises && imported.records) {
+            appData = imported;
+            saveData();
+            refreshAllDropdowns();
+            renderTodayRecords();
+            alert('備份資料已成功匯入！');
+          } else {
+            alert('匯入格式不正確');
+          }
+        } catch (err) {
+          alert('解析檔案失敗，請確認是否為有效 JSON');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // 啟動
+    window.addEventListener('DOMContentLoaded', initApp);
+  </script>
+</body>
+</html>
