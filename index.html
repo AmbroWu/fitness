@@ -83,6 +83,7 @@
       margin-bottom: 16px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.03), 0 4px 12px rgba(0,0,0,0.02);
       border: 1px solid var(--border);
+      overflow: hidden;
     }
 
     .card-title {
@@ -98,6 +99,7 @@
     /* Forms */
     .form-group {
       margin-bottom: 12px;
+      width: 100%;
     }
     .form-label {
       font-size: 12px;
@@ -109,7 +111,10 @@
       letter-spacing: 0.3px;
     }
     .form-control {
+      display: block;
       width: 100%;
+      max-width: 100%;
+      min-width: 0;
       height: 44px;
       border: 1px solid var(--border);
       background: #FAFAFA;
@@ -119,10 +124,34 @@
       color: var(--text-main);
       outline: none;
       transition: all 0.2s;
+      -webkit-appearance: none;
+      appearance: none;
     }
+    /* Fix iOS Safari Date Input Overflow & Alignment */
+    input[type="date"].form-control {
+      display: flex;
+      align-items: center;
+      text-align: left;
+      line-height: 42px;
+      padding-right: 12px;
+    }
+    input[type="date"].form-control::-webkit-date-and-time-value {
+      text-align: left;
+      margin: 0;
+    }
+
+    /* Custom Select Arrow for unified iOS appearance */
+    select.form-control {
+      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238E8E93' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='7 15 12 20 17 15'%3e%3c/polyline%3e%3cpolyline points='7 9 12 4 17 9'%3e%3c/polyline%3e%3c/svg%3e");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      background-size: 16px;
+      padding-right: 32px;
+    }
+
     .form-control:focus {
       border-color: var(--accent);
-      background: #FFF;
+      background-color: #FFF;
       box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
     }
 
@@ -135,6 +164,33 @@
       display: grid;
       grid-template-columns: 1.2fr 1fr 1fr;
       gap: 8px;
+    }
+
+    /* Segmented Control */
+    .segmented-control {
+      display: flex;
+      background: #F3F4F6;
+      padding: 3px;
+      border-radius: 10px;
+      margin-bottom: 14px;
+    }
+    .seg-btn {
+      flex: 1;
+      border: none;
+      background: transparent;
+      padding: 7px 0;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-sub);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .seg-btn.active {
+      background: #FFFFFF;
+      color: var(--text-main);
+      font-weight: 600;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
     }
 
     /* Buttons */
@@ -167,6 +223,11 @@
       padding: 0 14px;
       font-size: 13px;
       height: 36px;
+    }
+    .btn-muted {
+      background: #F3F4F6;
+      color: var(--text-sub);
+      width: 100%;
     }
     .btn-danger {
       background: var(--danger-light);
@@ -365,6 +426,18 @@
       color: var(--text-sub);
       font-size: 14px;
     }
+    .backup-status-box {
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 12px;
+      color: #475569;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
   </style>
 </head>
 <body>
@@ -465,9 +538,17 @@
     <section id="pageB" class="view-page">
       <!-- 走勢圖 -->
       <div class="card">
-        <div class="card-title">
-          <i data-lucide="trending-up" style="width: 18px; color: var(--accent);"></i>
-          <span>近 90 天訓練走勢 (磅數)</span>
+        <div class="card-title" style="justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <i data-lucide="trending-up" style="width: 18px; color: var(--accent);"></i>
+            <span id="trendCardTitle">近 30 次訓練走勢 (磅數)</span>
+          </div>
+          <span class="badge">同日取最高</span>
+        </div>
+
+        <div class="segmented-control">
+          <button class="seg-btn active" id="segCount30" onclick="setTrendMode('count30')">近 30 次訓練</button>
+          <button class="seg-btn" id="segDays90" onclick="setTrendMode('days90')">近 90 天</button>
         </div>
 
         <div class="form-group">
@@ -477,8 +558,11 @@
           </select>
         </div>
 
-        <div style="position: relative; height: 230px; width: 100%; margin-top: 10px;">
+        <div style="position: relative; height: 240px; width: 100%; margin-top: 10px;">
           <canvas id="trendChart"></canvas>
+        </div>
+        <div id="trendHint" style="font-size: 11px; color: var(--text-sub); text-align: center; margin-top: 8px;">
+          點擊圖表節點可檢視當次完整日期與組數明細
         </div>
       </div>
 
@@ -535,7 +619,11 @@
           <i data-lucide="shield-check" style="width: 18px; color: #10B981;"></i>
           <span>本地資料備份</span>
         </div>
-        <p style="font-size: 13px; color: var(--text-sub); margin-bottom: 12px;">資料皆安全儲存在此手機本地。你可隨時匯出備份 JSON 檔案或自備份復原。</p>
+        <div class="backup-status-box" id="backupStatusInfo">
+          <i data-lucide="clock" style="width: 14px; color: var(--accent);"></i>
+          <span>載入備份狀態中...</span>
+        </div>
+        <p style="font-size: 13px; color: var(--text-sub); margin-bottom: 12px;">資料皆安全儲存在此手機本地。每滿 30 天開啟 App 時將自動提醒你匯出備份檔。</p>
         <div class="grid-2">
           <button class="btn btn-secondary" onclick="exportData()">匯出備份 (JSON)</button>
           <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">匯入還原</button>
@@ -592,6 +680,29 @@
     </div>
   </div>
 
+  <!-- 30-Day Backup Reminder Modal -->
+  <div id="backupReminderModal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <i data-lucide="download-cloud" style="width: 20px; color: var(--accent);"></i>
+          <h3>定期備份提醒</h3>
+        </div>
+        <button class="btn-icon" onclick="snoozeBackupReminder()">✕</button>
+      </div>
+      <p id="backupReminderText" style="font-size: 14px; color: var(--text-main); line-height: 1.5; margin-bottom: 18px;">
+        距離上次匯出備份已滿 30 天。建議立即下載備份檔案並儲存至 iCloud Drive，確保訓練紀錄安全無虞。
+      </p>
+      <div class="grid-2">
+        <button class="btn btn-muted" onclick="snoozeBackupReminder()">稍後提醒</button>
+        <button class="btn btn-primary" onclick="handleReminderExport()">
+          <i data-lucide="download" style="width: 16px;"></i>
+          立即匯出備份
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // 預設資料結構 (依據使用者規格清單)
     const DEFAULT_DATA = {
@@ -621,9 +732,17 @@
     // State
     let appData = { ...DEFAULT_DATA };
     let chartInstance = null;
+    let currentTrendMode = 'count30'; // 'count30' | 'days90'
 
-    // LocalStorage Keys
+    // LocalStorage Keys (保持原 Key 確保無痛升級不遺失舊紀錄)
     const STORAGE_KEY = 'ambrosius_fitness_pwa_v1';
+    const BACKUP_META_KEY = 'ambrosius_backup_meta_v1';
+
+    function getLocalTodayStr() {
+      const now = new Date();
+      const offset = now.getTimezoneOffset() * 60000;
+      return new Date(now.getTime() - offset).toISOString().split('T')[0];
+    }
 
     function initApp() {
       // 載入本地儲存
@@ -643,7 +762,7 @@
       }
 
       // 設定今日日期
-      const today = new Date().toISOString().split('T')[0];
+      const today = getLocalTodayStr();
       const dateInput = document.getElementById('inputDate');
       dateInput.value = today;
       dateInput.addEventListener('change', renderTodayRecords);
@@ -664,6 +783,10 @@
       renderPrList();
       renderCategoryMgmtList();
       renderExerciseMgmtList();
+      updateBackupStatusUI();
+
+      // 檢查是否滿 30 天未匯出備份
+      checkBackupReminder();
 
       lucide.createIcons();
 
@@ -675,6 +798,85 @@
 
     function saveData() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+    }
+
+    // 備份時間追蹤與 30 天提醒邏輯
+    function getBackupMeta() {
+      const raw = localStorage.getItem(BACKUP_META_KEY);
+      if (raw) {
+        try {
+          return JSON.parse(raw);
+        } catch (e) {}
+      }
+      // 首次初始化：若有歷史紀錄則取最早紀錄日期，否則以今天起算
+      let initTs = Date.now();
+      if (appData.records && appData.records.length > 0) {
+        const sortedDates = appData.records
+          .map(r => new Date(r.date).getTime())
+          .filter(t => !isNaN(t))
+          .sort((a, b) => a - b);
+        if (sortedDates.length > 0) {
+          initTs = sortedDates[0];
+        }
+      }
+      const meta = { lastBackupTs: initTs, hasExported: false, snoozedDate: '' };
+      localStorage.setItem(BACKUP_META_KEY, JSON.stringify(meta));
+      return meta;
+    }
+
+    function saveBackupMeta(meta) {
+      localStorage.setItem(BACKUP_META_KEY, JSON.stringify(meta));
+      updateBackupStatusUI();
+    }
+
+    function updateBackupStatusUI() {
+      const meta = getBackupMeta();
+      const el = document.getElementById('backupStatusInfo');
+      if (!el) return;
+
+      const daysPassed = Math.floor((Date.now() - meta.lastBackupTs) / (1000 * 60 * 60 * 24));
+      const dateStr = new Date(meta.lastBackupTs).toISOString().split('T')[0];
+
+      if (meta.hasExported) {
+        el.innerHTML = `<i data-lucide="check-circle-2" style="width: 14px; color: #10B981;"></i><span>上次匯出備份：<strong>${dateStr}</strong>（已過 ${daysPassed} 天）</span>`;
+      } else {
+        el.innerHTML = `<i data-lucide="clock" style="width: 14px; color: var(--accent);"></i><span>尚未執行過匯出備份（起算日：${dateStr}，已過 ${daysPassed} 天）</span>`;
+      }
+      lucide.createIcons();
+    }
+
+    function checkBackupReminder() {
+      if (!appData.records || appData.records.length === 0) return;
+
+      const meta = getBackupMeta();
+      const todayStr = getLocalTodayStr();
+      if (meta.snoozedDate === todayStr) return; // 今天已按過稍後提醒
+
+      const diffMs = Date.now() - meta.lastBackupTs;
+      const daysPassed = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+      if (daysPassed >= 30) {
+        const textEl = document.getElementById('backupReminderText');
+        if (meta.hasExported) {
+          textEl.innerText = `距離你上次匯出備份（${new Date(meta.lastBackupTs).toISOString().split('T')[0]}）已過 ${daysPassed} 天。建議立即下載備份檔案，確保訓練紀錄安全無虞。`;
+        } else {
+          textEl.innerText = `你已持續記錄訓練超過 ${daysPassed} 天且尚未匯出過備份檔。建議立即下載 JSON 備份妥善保存。`;
+        }
+        document.getElementById('backupReminderModal').classList.add('active');
+        lucide.createIcons();
+      }
+    }
+
+    function snoozeBackupReminder() {
+      const meta = getBackupMeta();
+      meta.snoozedDate = getLocalTodayStr();
+      saveBackupMeta(meta);
+      closeModal('backupReminderModal');
+    }
+
+    function handleReminderExport() {
+      exportData();
+      closeModal('backupReminderModal');
     }
 
     // Tab 切換
@@ -696,6 +898,8 @@
         populateTrendExerciseDropdown();
         renderTrendChart();
         renderPrList();
+      } else if (pageId === 'pageC') {
+        updateBackupStatusUI();
       }
       lucide.createIcons();
     }
@@ -727,7 +931,6 @@
       const exName = document.getElementById('selectExercise').value;
       if (!exName) return;
 
-      // 找到此動作最近一次記錄
       const history = [...appData.records]
         .filter(r => r.exercise === exName)
         .sort((a, b) => new Date(b.date) - new Date(a.date) || b.timestamp - a.timestamp);
@@ -789,7 +992,6 @@
       const listContainer = document.getElementById('todayRecordList');
       const todayList = appData.records.filter(r => r.date === selectedDate);
 
-      // 計算成果指標
       let totalVol = 0;
       let totalSets = 0;
       let maxWeight = 0;
@@ -889,7 +1091,16 @@
       document.getElementById(id).classList.remove('active');
     }
 
-    // B. 統計分析：近 90 天走勢圖與 PR 查詢
+    // B. 統計分析：近 30 次訓練 / 近 90 天走勢圖與 PR 查詢
+    function setTrendMode(mode) {
+      currentTrendMode = mode;
+      document.getElementById('segCount30').classList.toggle('active', mode === 'count30');
+      document.getElementById('segDays90').classList.toggle('active', mode === 'days90');
+      document.getElementById('trendCardTitle').innerText =
+        mode === 'count30' ? '近 30 次訓練走勢 (磅數)' : '近 90 天訓練走勢 (磅數)';
+      renderTrendChart();
+    }
+
     function populateTrendExerciseDropdown() {
       const select = document.getElementById('trendExerciseSelect');
       const currentVal = select.value;
@@ -903,15 +1114,39 @@
       const exName = document.getElementById('trendExerciseSelect').value;
       const ctx = document.getElementById('trendChart').getContext('2d');
 
-      const ninetyDaysAgo = new Date();
-      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+      // 同一天合併取最高磅數算 1 次
+      const dailyBestMap = {};
+      appData.records
+        .filter(r => r.exercise === exName)
+        .forEach(r => {
+          const existing = dailyBestMap[r.date];
+          if (!existing || r.weight > existing.weight || (r.weight === existing.weight && r.reps * r.sets > existing.reps * existing.sets)) {
+            dailyBestMap[r.date] = {
+              date: r.date,
+              weight: r.weight,
+              reps: r.reps,
+              sets: r.sets
+            };
+          }
+        });
 
-      const filtered = appData.records
-        .filter(r => r.exercise === exName && new Date(r.date) >= ninetyDaysAgo)
-        .sort((a, b) => new Date(a.date) - new Date(b.date));
+      // 依日期升冪排序 (由舊到新)
+      let dailySessions = Object.values(dailyBestMap).sort((a, b) => new Date(a.date) - new Date(b.date));
 
-      const labels = filtered.map(r => r.date.substring(5)); // MM-DD
-      const dataWeights = filtered.map(r => r.weight);
+      if (currentTrendMode === 'days90') {
+        const ninetyDaysAgo = new Date();
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+        dailySessions = dailySessions.filter(s => new Date(s.date) >= ninetyDaysAgo);
+      } else {
+        // 近 30 次訓練
+        dailySessions = dailySessions.slice(-30);
+      }
+
+      const labels = dailySessions.map((s, idx) => {
+        const shortDate = s.date.substring(5); // MM-DD
+        return currentTrendMode === 'count30' ? `#${idx + 1} (${shortDate})` : shortDate;
+      });
+      const dataWeights = dailySessions.map(s => s.weight);
 
       if (chartInstance) {
         chartInstance.destroy();
@@ -920,15 +1155,16 @@
       chartInstance = new Chart(ctx, {
         type: 'line',
         data: {
-          labels: labels.length ? labels : ['無數據'],
+          labels: labels.length ? labels : ['尚無數據'],
           datasets: [{
-            label: `${exName} 磅數 (lbs)`,
+            label: `${exName} 最高磅數`,
             data: dataWeights.length ? dataWeights : [0],
             borderColor: '#2563EB',
             backgroundColor: 'rgba(37, 99, 235, 0.08)',
             fill: true,
             tension: 0.35,
-            pointRadius: 4,
+            pointRadius: dailySessions.length > 15 ? 3.5 : 5,
+            pointHoverRadius: 7,
             pointBackgroundColor: '#2563EB',
             borderWidth: 2.5
           }]
@@ -936,20 +1172,45 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          interaction: {
+            mode: 'index',
+            intersect: false
+          },
           plugins: {
             legend: { display: false },
             tooltip: {
               backgroundColor: '#1C1C1E',
-              titleFont: { size: 12 },
+              titleFont: { size: 12, weight: 'normal' },
               bodyFont: { size: 13, weight: 'bold' },
               padding: 10,
-              displayColors: false
+              displayColors: false,
+              callbacks: {
+                title: function(tooltipItems) {
+                  const idx = tooltipItems[0].dataIndex;
+                  const session = dailySessions[idx];
+                  if (!session) return '無紀錄';
+                  return `第 ${idx + 1} 次訓練｜日期：${session.date}`;
+                },
+                label: function(context) {
+                  const idx = context.dataIndex;
+                  const session = dailySessions[idx];
+                  if (!session) return '0 lbs';
+                  return `最高負重：${session.weight} lbs (${session.sets}組 × ${session.reps}次)`;
+                }
+              }
             }
           },
           scales: {
             x: {
               grid: { display: false },
-              ticks: { font: { size: 11 }, color: '#8E8E93' }
+              ticks: {
+                font: { size: 10 },
+                color: '#8E8E93',
+                maxRotation: 45,
+                minRotation: 0,
+                autoSkip: true,
+                maxTicksLimit: 10
+              }
             },
             y: {
               beginAtZero: false,
@@ -1128,10 +1389,17 @@
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appData, null, 2));
       const downloadAnchor = document.createElement('a');
       downloadAnchor.setAttribute("href", dataStr);
-      downloadAnchor.setAttribute("download", `Ambrosius_Workout_Backup_${new Date().toISOString().split('T')[0]}.json`);
+      downloadAnchor.setAttribute("download", `Ambrosius_Workout_Backup_${getLocalTodayStr()}.json`);
       document.body.appendChild(downloadAnchor);
       downloadAnchor.click();
       downloadAnchor.remove();
+
+      // 更新最後匯出時間並重設 30 天倒數
+      const meta = getBackupMeta();
+      meta.lastBackupTs = Date.now();
+      meta.hasExported = true;
+      meta.snoozedDate = '';
+      saveBackupMeta(meta);
     }
 
     function importData(event) {
