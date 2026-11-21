@@ -127,7 +127,6 @@
       -webkit-appearance: none;
       appearance: none;
     }
-    /* Fix iOS Safari Date Input Overflow & Alignment */
     input[type="date"].form-control {
       display: flex;
       align-items: center;
@@ -140,7 +139,6 @@
       margin: 0;
     }
 
-    /* Custom Select Arrow for unified iOS appearance */
     select.form-control {
       background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238E8E93' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='7 15 12 20 17 15'%3e%3c/polyline%3e%3cpolyline points='7 9 12 4 17 9'%3e%3c/polyline%3e%3c/svg%3e");
       background-repeat: no-repeat;
@@ -275,6 +273,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 8px;
     }
     .record-item:last-child {
       border-bottom: none;
@@ -286,6 +285,7 @@
       color: var(--text-main);
       display: flex;
       align-items: center;
+      flex-wrap: wrap;
       gap: 6px;
     }
     .badge {
@@ -295,6 +295,16 @@
       color: var(--text-sub);
       border-radius: 6px;
       font-weight: 500;
+      white-space: nowrap;
+    }
+    .badge-day {
+      font-size: 11px;
+      padding: 2px 8px;
+      background: var(--accent-light);
+      color: var(--accent);
+      border-radius: 999px;
+      font-weight: 600;
+      white-space: nowrap;
     }
     .record-sub {
       font-size: 13px;
@@ -304,6 +314,7 @@
     .record-actions {
       display: flex;
       gap: 6px;
+      flex-shrink: 0;
     }
 
     /* PR List */
@@ -437,6 +448,20 @@
       display: flex;
       align-items: center;
       gap: 6px;
+    }
+    .backup-fallback-textarea {
+      width: 100%;
+      height: 120px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      background: #F8FAFC;
+      color: var(--text-main);
+      margin-bottom: 12px;
+      user-select: all;
+      -webkit-user-select: all;
     }
   </style>
 </head>
@@ -623,11 +648,11 @@
           <i data-lucide="clock" style="width: 14px; color: var(--accent);"></i>
           <span>載入備份狀態中...</span>
         </div>
-        <p style="font-size: 13px; color: var(--text-sub); margin-bottom: 12px;">資料皆安全儲存在此手機本地。每滿 30 天開啟 App 時將自動提醒你匯出備份檔。</p>
+        <p style="font-size: 13px; color: var(--text-sub); margin-bottom: 12px;">資料皆安全儲存在此手機本地。點擊匯出會喚起 iPhone 分享選單，可選擇「儲存到檔案」存進 iCloud Drive。</p>
         <div class="grid-2">
           <button class="btn btn-secondary" onclick="exportData()">匯出備份 (JSON)</button>
           <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">匯入還原</button>
-          <input type="file" id="importFile" style="display: none;" accept=".json" onchange="importData(event)">
+          <input type="file" id="importFile" style="display: none;" accept=".json,application/json,text/plain" onchange="importData(event)">
         </div>
       </div>
     </section>
@@ -696,15 +721,36 @@
       <div class="grid-2">
         <button class="btn btn-muted" onclick="snoozeBackupReminder()">稍後提醒</button>
         <button class="btn btn-primary" onclick="handleReminderExport()">
-          <i data-lucide="download" style="width: 16px;"></i>
+          <i data-lucide="share" style="width: 16px;"></i>
           立即匯出備份
         </button>
       </div>
     </div>
   </div>
 
+  <!-- Fallback Copy Backup Modal (if native share/download is blocked) -->
+  <div id="backupFallbackModal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <i data-lucide="copy" style="width: 20px; color: var(--accent);"></i>
+          <h3>備份資料文字代碼</h3>
+        </div>
+        <button class="btn-icon" onclick="closeModal('backupFallbackModal')">✕</button>
+      </div>
+      <p style="font-size: 13px; color: var(--text-sub); line-height: 1.5; margin-bottom: 10px;">
+        請點擊下方「一鍵複製備份代碼」，貼上至 Apple 備忘錄或存為 <code>.json</code> 檔案即可完成備份：
+      </p>
+      <textarea id="backupFallbackText" class="backup-fallback-textarea" readonly></textarea>
+      <button class="btn btn-primary" onclick="copyFallbackBackup()">
+        <i data-lucide="clipboard-check" style="width: 18px;"></i>
+        一鍵複製完整備份代碼
+      </button>
+    </div>
+  </div>
+
   <script>
-    // 預設資料結構 (依據使用者規格清單)
+    // 預設資料結構
     const DEFAULT_DATA = {
       categories: ["胸", "背", "腿", "手臂", "肩"],
       exercises: [
@@ -732,9 +778,9 @@
     // State
     let appData = { ...DEFAULT_DATA };
     let chartInstance = null;
-    let currentTrendMode = 'count30'; // 'count30' | 'days90'
+    let currentTrendMode = 'count30';
 
-    // LocalStorage Keys (保持原 Key 確保無痛升級不遺失舊紀錄)
+    // LocalStorage Keys (維持原 Key 確保無痛升級不遺失舊紀錄)
     const STORAGE_KEY = 'ambrosius_fitness_pwa_v1';
     const BACKUP_META_KEY = 'ambrosius_backup_meta_v1';
 
@@ -745,7 +791,6 @@
     }
 
     function initApp() {
-      // 載入本地儲存
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         try {
@@ -761,7 +806,6 @@
         saveData();
       }
 
-      // 設定今日日期
       const today = getLocalTodayStr();
       const dateInput = document.getElementById('inputDate');
       dateInput.value = today;
@@ -769,28 +813,23 @@
 
       document.getElementById('todayDateBadge').innerText = today;
 
-      // 初始化下拉選項
       populateCategoryDropdown();
       populateExerciseDropdown();
       populateTrendExerciseDropdown();
       populateMgmtFilter();
 
-      // 載入上次同項目數值
       onExerciseChange();
 
-      // 渲染畫面
       renderTodayRecords();
       renderPrList();
       renderCategoryMgmtList();
       renderExerciseMgmtList();
       updateBackupStatusUI();
 
-      // 檢查是否滿 30 天未匯出備份
       checkBackupReminder();
 
       lucide.createIcons();
 
-      // 註冊 Service Worker
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('sw.js').catch(err => console.log('SW failed', err));
       }
@@ -808,7 +847,6 @@
           return JSON.parse(raw);
         } catch (e) {}
       }
-      // 首次初始化：若有歷史紀錄則取最早紀錄日期，否則以今天起算
       let initTs = Date.now();
       if (appData.records && appData.records.length > 0) {
         const sortedDates = appData.records
@@ -850,7 +888,7 @@
 
       const meta = getBackupMeta();
       const todayStr = getLocalTodayStr();
-      if (meta.snoozedDate === todayStr) return; // 今天已按過稍後提醒
+      if (meta.snoozedDate === todayStr) return;
 
       const diffMs = Date.now() - meta.lastBackupTs;
       const daysPassed = Math.floor(diffMs / (1000 * 60 * 60 * 24));
@@ -858,9 +896,9 @@
       if (daysPassed >= 30) {
         const textEl = document.getElementById('backupReminderText');
         if (meta.hasExported) {
-          textEl.innerText = `距離你上次匯出備份（${new Date(meta.lastBackupTs).toISOString().split('T')[0]}）已過 ${daysPassed} 天。建議立即下載備份檔案，確保訓練紀錄安全無虞。`;
+          textEl.innerText = `距離你上次匯出備份（${new Date(meta.lastBackupTs).toISOString().split('T')[0]}）已過 ${daysPassed} 天。建議立即匯出備份檔案，確保訓練紀錄安全無虞。`;
         } else {
-          textEl.innerText = `你已持續記錄訓練超過 ${daysPassed} 天且尚未匯出過備份檔。建議立即下載 JSON 備份妥善保存。`;
+          textEl.innerText = `你已持續記錄訓練超過 ${daysPassed} 天且尚未匯出過備份檔。建議立即匯出 JSON 備份妥善保存。`;
         }
         document.getElementById('backupReminderModal').classList.add('active');
         lucide.createIcons();
@@ -875,8 +913,8 @@
     }
 
     function handleReminderExport() {
-      exportData();
       closeModal('backupReminderModal');
+      exportData();
     }
 
     // Tab 切換
@@ -926,7 +964,6 @@
       onExerciseChange();
     }
 
-    // 磅數：預設載入上一次同項目的數值
     function onExerciseChange() {
       const exName = document.getElementById('selectExercise').value;
       if (!exName) return;
@@ -986,6 +1023,17 @@
       lucide.createIcons();
     }
 
+    // 計算單一動作截至 targetDate (含當日) 為止的不重複訓練天數
+    function getCumulativeTrainingDays(exerciseName, targetDate) {
+      const uniqueDates = new Set();
+      appData.records.forEach(r => {
+        if (r.exercise === exerciseName && r.date && r.date <= targetDate) {
+          uniqueDates.add(r.date);
+        }
+      });
+      return Math.max(1, uniqueDates.size);
+    }
+
     // 今日記錄清單與即時成果計算
     function renderTodayRecords() {
       const selectedDate = document.getElementById('inputDate').value;
@@ -1014,12 +1062,14 @@
 
       listContainer.innerHTML = todayList.map(r => {
         const vol = r.weight * r.reps * r.sets;
+        const dayNum = getCumulativeTrainingDays(r.exercise, r.date);
         return `
           <div class="record-item">
             <div>
               <div class="record-main">
                 <span>${r.exercise}</span>
                 <span class="badge">${r.category}</span>
+                <span class="badge-day">第 ${dayNum} 天</span>
               </div>
               <div class="record-sub">
                 ${r.weight} lbs × ${r.sets}組 × ${r.reps}次 
@@ -1091,7 +1141,7 @@
       document.getElementById(id).classList.remove('active');
     }
 
-    // B. 統計分析：近 30 次訓練 / 近 90 天走勢圖與 PR 查詢
+    // B. 統計分析
     function setTrendMode(mode) {
       currentTrendMode = mode;
       document.getElementById('segCount30').classList.toggle('active', mode === 'count30');
@@ -1114,7 +1164,6 @@
       const exName = document.getElementById('trendExerciseSelect').value;
       const ctx = document.getElementById('trendChart').getContext('2d');
 
-      // 同一天合併取最高磅數算 1 次
       const dailyBestMap = {};
       appData.records
         .filter(r => r.exercise === exName)
@@ -1130,7 +1179,6 @@
           }
         });
 
-      // 依日期升冪排序 (由舊到新)
       let dailySessions = Object.values(dailyBestMap).sort((a, b) => new Date(a.date) - new Date(b.date));
 
       if (currentTrendMode === 'days90') {
@@ -1138,12 +1186,11 @@
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
         dailySessions = dailySessions.filter(s => new Date(s.date) >= ninetyDaysAgo);
       } else {
-        // 近 30 次訓練
         dailySessions = dailySessions.slice(-30);
       }
 
       const labels = dailySessions.map((s, idx) => {
-        const shortDate = s.date.substring(5); // MM-DD
+        const shortDate = s.date.substring(5);
         return currentTrendMode === 'count30' ? `#${idx + 1} (${shortDate})` : shortDate;
       });
       const dataWeights = dailySessions.map(s => s.weight);
@@ -1384,22 +1431,85 @@
       renderExerciseMgmtList();
     }
 
-    // 匯出 / 匯入資料庫
-    function exportData() {
-      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appData, null, 2));
-      const downloadAnchor = document.createElement('a');
-      downloadAnchor.setAttribute("href", dataStr);
-      downloadAnchor.setAttribute("download", `Ambrosius_Workout_Backup_${getLocalTodayStr()}.json`);
-      document.body.appendChild(downloadAnchor);
-      downloadAnchor.click();
-      downloadAnchor.remove();
-
-      // 更新最後匯出時間並重設 30 天倒數
+    function markBackupCompleted() {
       const meta = getBackupMeta();
       meta.lastBackupTs = Date.now();
       meta.hasExported = true;
       meta.snoozedDate = '';
       saveBackupMeta(meta);
+    }
+
+    // iOS 專屬雙層匯出備份機制 (Web Share API File -> Blob Download -> Fallback Copy Modal)
+    async function exportData() {
+      const jsonStr = JSON.stringify(appData, null, 2);
+      const fileName = `Ambrosius_Workout_Backup_${getLocalTodayStr()}.json`;
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+
+      // 1. 優先嘗試 iOS 原生分享選單 (支援主畫面 PWA 儲存到檔案 / iCloud Drive / AirDrop)
+      if (navigator.share) {
+        try {
+          const file = new File([blob], fileName, { type: 'application/json' });
+          if (!navigator.canShare || navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: 'Ambrosius 健身日誌備份',
+              text: `健身日誌備份檔 (${getLocalTodayStr()})`
+            });
+            markBackupCompleted();
+            return;
+          }
+        } catch (err) {
+          // 若使用者在分享選單中主動按「取消」(AbortError)，直接結束不顯示錯誤
+          if (err && err.name === 'AbortError') {
+            return;
+          }
+          console.log('File share failed, trying text share or fallback', err);
+        }
+      }
+
+      // 2. 桌面瀏覽器或標準 Safari 環境：使用 Blob ObjectURL 觸發下載
+      const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+      if (!isStandalone) {
+        try {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = fileName;
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }, 1000);
+          markBackupCompleted();
+          return;
+        } catch (e) {
+          console.log('Blob download failed', e);
+        }
+      }
+
+      // 3. 終極備援：開啟複製文字視窗，確保任何受限沙盒下都能完整備份
+      document.getElementById('backupFallbackText').value = jsonStr;
+      document.getElementById('backupFallbackModal').classList.add('active');
+      lucide.createIcons();
+    }
+
+    async function copyFallbackBackup() {
+      const textarea = document.getElementById('backupFallbackText');
+      const text = textarea.value;
+      try {
+        await navigator.clipboard.writeText(text);
+        markBackupCompleted();
+        alert('完整備份代碼已複製到剪貼簿！');
+        closeModal('backupFallbackModal');
+      } catch (err) {
+        textarea.focus();
+        textarea.select();
+        document.execCommand('copy');
+        markBackupCompleted();
+        alert('完整備份代碼已複製到剪貼簿！');
+        closeModal('backupFallbackModal');
+      }
     }
 
     function importData(event) {
