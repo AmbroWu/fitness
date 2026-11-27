@@ -164,6 +164,25 @@
       gap: 8px;
     }
 
+    /* Weight Count Preview Banner in Quick Log */
+    .weight-history-hint {
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-size: 12px;
+      color: #475569;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      line-height: 1.4;
+    }
+    .weight-history-hint strong {
+      color: var(--accent);
+      font-weight: 700;
+    }
+
     /* Segmented Control */
     .segmented-control {
       display: flex;
@@ -297,7 +316,7 @@
       font-weight: 500;
       white-space: nowrap;
     }
-    .badge-day {
+    .badge-weight-count {
       font-size: 11px;
       padding: 2px 8px;
       background: var(--accent-light);
@@ -510,7 +529,7 @@
         <div class="grid-3 form-group">
           <div>
             <label class="form-label">磅數 (lbs)</label>
-            <input type="number" id="inputWeight" class="form-control" placeholder="0" step="0.5" inputmode="decimal">
+            <input type="number" id="inputWeight" class="form-control" placeholder="0" step="0.5" inputmode="decimal" oninput="updateWeightHistoryPreview()">
           </div>
           <div>
             <label class="form-label">次數</label>
@@ -520,6 +539,12 @@
             <label class="form-label">組數</label>
             <input type="number" id="inputSets" class="form-control" placeholder="3" inputmode="numeric">
           </div>
+        </div>
+
+        <!-- 同磅數累積次數即時預覽 -->
+        <div class="weight-history-hint" id="weightHistoryPreview">
+          <i data-lucide="repeat" style="width: 14px; color: var(--accent); flex-shrink: 0;"></i>
+          <span>請輸入磅數以查詢連續訓練次數</span>
         </div>
 
         <button class="btn btn-primary" onclick="handleAddRecord()">
@@ -790,6 +815,16 @@
       return new Date(now.getTime() - offset).toISOString().split('T')[0];
     }
 
+    function parseDateUTC(dateStr) {
+      const parts = dateStr.split('-').map(Number);
+      return Date.UTC(parts[0], parts[1] - 1, parts[2]);
+    }
+
+    function diffDays(dateStrA, dateStrB) {
+      const msPerDay = 1000 * 60 * 60 * 24;
+      return Math.round((parseDateUTC(dateStrB) - parseDateUTC(dateStrA)) / msPerDay);
+    }
+
     function initApp() {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
@@ -809,7 +844,10 @@
       const today = getLocalTodayStr();
       const dateInput = document.getElementById('inputDate');
       dateInput.value = today;
-      dateInput.addEventListener('change', renderTodayRecords);
+      dateInput.addEventListener('change', () => {
+        renderTodayRecords();
+        updateWeightHistoryPreview();
+      });
 
       document.getElementById('todayDateBadge').innerText = today;
 
@@ -965,11 +1003,15 @@
     }
 
     function onExerciseChange() {
+      const catName = document.getElementById('selectCategory').value;
       const exName = document.getElementById('selectExercise').value;
-      if (!exName) return;
+      if (!exName) {
+        updateWeightHistoryPreview();
+        return;
+      }
 
       const history = [...appData.records]
-        .filter(r => r.exercise === exName)
+        .filter(r => r.category === catName && r.exercise === exName)
         .sort((a, b) => new Date(b.date) - new Date(a.date) || b.timestamp - a.timestamp);
 
       if (history.length > 0) {
@@ -982,6 +1024,93 @@
         document.getElementById('inputReps').value = '10';
         document.getElementById('inputSets').value = '3';
       }
+
+      updateWeightHistoryPreview();
+    }
+
+    /**
+     * 計算「部位主分類 + 器材動作 + 磅數」的連續訓練次數（一天記為一次）
+     * 規則：前後兩次相同磅數訓練日期間隔 > 90 天時歸零重算
+     * @param {string} category
+     * @param {string} exercise
+     * @param {number} weight
+     * @param {string} targetDate - YYYY-MM-DD
+     * @returns {{ count: number, isReset: boolean, hasToday: boolean }}
+     */
+    function getWeightStreakCount(category, exercise, weight, targetDate) {
+      if (!category || !exercise || isNaN(weight) || !targetDate) {
+        return { count: 0, isReset: false, hasToday: false };
+      }
+
+      // 篩選符合「主分類 + 器材 + 精準磅數」且日期 <= targetDate 的不重複日期
+      const dateSet = new Set();
+      appData.records.forEach(r => {
+        if (
+          r.category === category &&
+          r.exercise === exercise &&
+          Number(r.weight) === Number(weight) &&
+          r.date &&
+          r.date <= targetDate
+        ) {
+          dateSet.add(r.date);
+        }
+      });
+
+      const sortedDates = Array.from(dateSet).sort(); // 升冪排序 YYYY-MM-DD
+      if (sortedDates.length === 0) {
+        return { count: 0, isReset: false, hasToday: false };
+      }
+
+      const hasToday = sortedDates[sortedDates.length - 1] === targetDate;
+
+      // 檢查最後一筆訓練日與 targetDate 的間隔是否 > 90 天
+      const lastRecordedDate = sortedDates[sortedDates.length - 1];
+      if (!hasToday && diffDays(lastRecordedDate, targetDate) > 90) {
+        return { count: 0, isReset: true, hasToday: false };
+      }
+
+      // 由最新日期往回走，若相鄰兩次間隔 > 90 天則截斷
+      let count = 1;
+      for (let i = sortedDates.length - 1; i > 0; i--) {
+        const gap = diffDays(sortedDates[i - 1], sortedDates[i]);
+        if (gap > 90) {
+          break;
+        }
+        count++;
+      }
+
+      return { count, isReset: false, hasToday };
+    }
+
+    // 「今日速記」磅數連續次數預覽更新
+    function updateWeightHistoryPreview() {
+      const previewEl = document.getElementById('weightHistoryPreview');
+      if (!previewEl) return;
+
+      const date = document.getElementById('inputDate').value;
+      const category = document.getElementById('selectCategory').value;
+      const exercise = document.getElementById('selectExercise').value;
+      const weightVal = document.getElementById('inputWeight').value;
+      const weight = parseFloat(weightVal);
+
+      if (!exercise || weightVal === '' || isNaN(weight) || weight < 0) {
+        previewEl.innerHTML = `<i data-lucide="repeat" style="width: 14px; color: var(--accent); flex-shrink: 0;"></i><span>請輸入磅數以查詢連續訓練次數</span>`;
+        lucide.createIcons();
+        return;
+      }
+
+      const stats = getWeightStreakCount(category, exercise, weight, date);
+
+      if (stats.count === 0) {
+        const reason = stats.isReset ? '（逾 90 天未練此磅數，重新起算）' : '（全新磅數）';
+        previewEl.innerHTML = `<i data-lucide="sparkles" style="width: 14px; color: var(--accent); flex-shrink: 0;"></i><span>此磅數（<strong>${weight} lbs</strong>）近期已練 <strong>0 次</strong>${reason}</span>`;
+      } else if (stats.hasToday) {
+        previewEl.innerHTML = `<i data-lucide="check-circle" style="width: 14px; color: #10B981; flex-shrink: 0;"></i><span>此磅數（<strong>${weight} lbs</strong>）近期已練 <strong>${stats.count} 次</strong>（含今日）</span>`;
+      } else {
+        previewEl.innerHTML = `<i data-lucide="repeat" style="width: 14px; color: var(--accent); flex-shrink: 0;"></i><span>此磅數（<strong>${weight} lbs</strong>）近期已練 <strong>${stats.count} 次</strong>，加入後將累計為第 ${stats.count + 1} 次</span>`;
+      }
+
+      lucide.createIcons();
     }
 
     // 新增訓練紀錄
@@ -1020,18 +1149,8 @@
       appData.records.unshift(newRecord);
       saveData();
       renderTodayRecords();
+      updateWeightHistoryPreview();
       lucide.createIcons();
-    }
-
-    // 計算單一動作截至 targetDate (含當日) 為止的不重複訓練天數
-    function getCumulativeTrainingDays(exerciseName, targetDate) {
-      const uniqueDates = new Set();
-      appData.records.forEach(r => {
-        if (r.exercise === exerciseName && r.date && r.date <= targetDate) {
-          uniqueDates.add(r.date);
-        }
-      });
-      return Math.max(1, uniqueDates.size);
     }
 
     // 今日記錄清單與即時成果計算
@@ -1062,14 +1181,15 @@
 
       listContainer.innerHTML = todayList.map(r => {
         const vol = r.weight * r.reps * r.sets;
-        const dayNum = getCumulativeTrainingDays(r.exercise, r.date);
+        const streak = getWeightStreakCount(r.category, r.exercise, r.weight, r.date);
+        const countNum = Math.max(1, streak.count);
         return `
           <div class="record-item">
             <div>
               <div class="record-main">
                 <span>${r.exercise}</span>
                 <span class="badge">${r.category}</span>
-                <span class="badge-day">第 ${dayNum} 天</span>
+                <span class="badge-weight-count">${r.weight} lbs 第 ${countNum} 次</span>
               </div>
               <div class="record-sub">
                 ${r.weight} lbs × ${r.sets}組 × ${r.reps}次 
@@ -1097,6 +1217,7 @@
         appData.records = appData.records.filter(r => r.id !== id);
         saveData();
         renderTodayRecords();
+        updateWeightHistoryPreview();
       }
     }
 
@@ -1135,6 +1256,7 @@
       saveData();
       closeModal('editRecordModal');
       renderTodayRecords();
+      updateWeightHistoryPreview();
     }
 
     function closeModal(id) {
@@ -1429,6 +1551,7 @@
       populateMgmtFilter();
       renderCategoryMgmtList();
       renderExerciseMgmtList();
+      updateWeightHistoryPreview();
     }
 
     function markBackupCompleted() {
@@ -1439,13 +1562,12 @@
       saveBackupMeta(meta);
     }
 
-    // iOS 專屬雙層匯出備份機制 (Web Share API File -> Blob Download -> Fallback Copy Modal)
+    // iOS 專屬雙層匯出備份機制
     async function exportData() {
       const jsonStr = JSON.stringify(appData, null, 2);
       const fileName = `Ambrosius_Workout_Backup_${getLocalTodayStr()}.json`;
       const blob = new Blob([jsonStr], { type: 'application/json' });
 
-      // 1. 優先嘗試 iOS 原生分享選單 (支援主畫面 PWA 儲存到檔案 / iCloud Drive / AirDrop)
       if (navigator.share) {
         try {
           const file = new File([blob], fileName, { type: 'application/json' });
@@ -1459,15 +1581,13 @@
             return;
           }
         } catch (err) {
-          // 若使用者在分享選單中主動按「取消」(AbortError)，直接結束不顯示錯誤
           if (err && err.name === 'AbortError') {
             return;
           }
-          console.log('File share failed, trying text share or fallback', err);
+          console.log('File share failed, trying fallback', err);
         }
       }
 
-      // 2. 桌面瀏覽器或標準 Safari 環境：使用 Blob ObjectURL 觸發下載
       const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
       if (!isStandalone) {
         try {
@@ -1488,7 +1608,6 @@
         }
       }
 
-      // 3. 終極備援：開啟複製文字視窗，確保任何受限沙盒下都能完整備份
       document.getElementById('backupFallbackText').value = jsonStr;
       document.getElementById('backupFallbackModal').classList.add('active');
       lucide.createIcons();
